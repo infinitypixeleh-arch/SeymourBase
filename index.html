@@ -118,7 +118,11 @@
 
 <h3>Saved Searches</h3>
 <div id="searchList"></div>
-
+<div id="paginationControls" style="margin-top: 10px; text-align: center;">
+    <button id="prevPage" onclick="changePage(-1)">Previous</button>
+    <span id="pageDisplay" style="margin: 0 15px;">Page 1</span>
+    <button id="nextPage" onclick="changePage(1)">Next</button>
+</div>
 <hr>
 
 <h3>Inbox</h3>
@@ -222,9 +226,98 @@ onAuthStateChanged(auth, (user) => {
 
 // --- GLOBAL DATA SYNC ---
 
+// New Global State for Pagination
+let currentPage = 1;
+const entriesPerPage = 10;
+let totalSearches = []; // To keep track of the full list
+
 function startGlobalSync(currentUser) {
     const searchList = document.getElementById("searchList");
     const inboxList = document.getElementById("inboxList");
+
+    onValue(ref(db, 'searches'), (snapshot) => {
+        const data = snapshot.val();
+        if (!data) {
+            searchList.innerHTML = "No searches found.";
+            return;
+        }
+
+        // Convert object to array so we can paginate it
+        totalSearches = Object.keys(data).map(id => ({
+            id: id,
+            ...data[id]
+        })).reverse(); // .reverse() shows newest first
+
+        renderPaginatedList(currentUser);
+        
+        // Update Personal Inbox (Inbox usually stays as a full scrollable list)
+        inboxList.innerHTML = "";
+        totalSearches.forEach(entry => {
+            if(entry.user === currentUser) {
+                const inv = document.createElement("div");
+                inv.className = "inbox-entry";
+                inv.textContent = `${entry.item} (${entry.hex})`;
+                inv.onclick = () => openChat(entry.id, entry.hex, entry.item);
+                inboxList.appendChild(inv);
+            }
+        });
+    });
+}
+
+// Function to handle rendering the specific page
+function renderPaginatedList(currentUser) {
+    const searchList = document.getElementById("searchList");
+    searchList.innerHTML = "";
+
+    // Calculate start and end indexes
+    const startIndex = (currentPage - 1) * entriesPerPage;
+    const endIndex = startIndex + entriesPerPage;
+    const pageItems = totalSearches.slice(startIndex, endIndex);
+
+    pageItems.forEach(entry => {
+        const div = document.createElement("div");
+        div.className = "search-entry";
+        div.innerHTML = `<div><strong>${entry.user}</strong> — ${entry.hex} — ${entry.item}</div>`;
+
+        const btns = document.createElement("div");
+        
+        if(currentUser === entry.user) {
+            const trans = document.createElement("button");
+            trans.textContent = "Transfer";
+            trans.onclick = (e) => {
+                e.stopPropagation();
+                let nextOwner = prompt("Enter new owner username:").toLowerCase();
+                if(nextOwner) set(ref(db, `searches/${entry.id}/user`), nextOwner);
+            };
+            btns.appendChild(trans);
+        }
+
+        if(currentUser.toLowerCase() === "infinitypixel") {
+            const del = document.createElement("button");
+            del.textContent = "Delete";
+            del.style.marginLeft = "5px";
+            del.onclick = (e) => { e.stopPropagation(); remove(ref(db, `searches/${entry.id}`)); };
+            btns.appendChild(del);
+        }
+        
+        div.appendChild(btns);
+        div.onclick = () => openChat(entry.id, entry.hex, entry.item);
+        searchList.appendChild(div);
+    });
+
+    // Update Pagination UI
+    document.getElementById("pageDisplay").textContent = `Page ${currentPage}`;
+    document.getElementById("prevPage").disabled = (currentPage === 1);
+    document.getElementById("nextPage").disabled = (endIndex >= totalSearches.length);
+}
+
+// Function to change pages
+window.changePage = function(direction) {
+    currentPage += direction;
+    // We need to know who the user is to render correctly
+    const currentUser = localStorage.getItem("currentUser");
+    renderPaginatedList(currentUser);
+};;
 
     // Live sync for "Saved Searches" and "Inbox"
     onValue(ref(db, 'searches'), (snapshot) => {
@@ -394,6 +487,7 @@ window.resetAllData = function() {
 </script>
 </body>
 </html>
+
 
 
 
