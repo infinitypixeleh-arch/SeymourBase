@@ -145,6 +145,28 @@
     RESET ALL DATA
 </button>
 <script>
+    // Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAXAMTPkmQx4KLydLsEUPPnrI748Exd4Hw",
+  authDomain: "seymourbase-a1ad6.firebaseapp.com",
+  databaseURL: "https://seymourbase-a1ad6-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "seymourbase-a1ad6",
+  storageBucket: "seymourbase-a1ad6.firebasestorage.app",
+  messagingSenderId: "586609389090",
+  appId: "1:586609389090:web:e3bdcc9b3107917818a47b",
+  measurementId: "G-W5MQ8XWS6M"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 let mode = "login";
 let currentPage = 1;
 const itemsPerPage = 5;
@@ -189,16 +211,22 @@ function loginSuccess(){
     loadInbox();
 }
 
-function saveSearch(){
-    const hex = hexInput.value.trim();
-    const item = itemSelect.value;
+function saveSearch() {
+    const hex = document.getElementById("hexInput").value.trim();
+    const item = document.getElementById("itemSelect").value;
     const user = localStorage.getItem("currentUser");
-    if(hex.length!==7 || !item) return;
+    
+    if(hex.length !== 7 || !item) return;
 
-    let searches = JSON.parse(localStorage.getItem("savedSearches")||"[]");
-    searches.push({user,hex,item});
-    localStorage.setItem("savedSearches",JSON.stringify(searches));
-    loadSavedSearches();
+    // Push to Firebase instead of localStorage
+    const searchRef = ref(db, 'searches');
+    const newSearchRef = push(searchRef);
+    set(newSearchRef, {
+        user: user,
+        hex: hex,
+        item: item,
+        timestamp: Date.now()
+    });
 }
 
 function bulkImport(){
@@ -230,53 +258,29 @@ function deleteSearch(index){
     loadSavedSearches();
 }
 
-function loadSavedSearches(){
-    const list = document.getElementById("searchList");
-    list.innerHTML="";
-    const user = localStorage.getItem("currentUser");
-    let searches = JSON.parse(localStorage.getItem("savedSearches")||"[]");
+function syncSavedSearches() {
+    const searchRef = ref(db, 'searches');
+    
+    // This "listens" for changes constantly
+    onValue(searchRef, (snapshot) => {
+        const data = snapshot.val();
+        const list = document.getElementById("searchList");
+        list.innerHTML = "";
+        
+        if (!data) return;
 
-    searches.forEach((entry,i)=>{
-        const div = document.createElement("div");
-        div.className="search-entry";
-
-        const left = document.createElement("div");
-        left.innerHTML=`<strong>${entry.user}</strong> — ${entry.hex} — ${entry.item}`;
-
-        const right = document.createElement("div");
-
-        // Transfer only by owner
-        if(user===entry.user){
-            const btn=document.createElement("button");
-            btn.textContent="Transfer";
-            btn.onclick=(e)=>{
-                e.stopPropagation();
-                let newOwner=prompt("New owner:");
-                if(!newOwner) return;
-                searches[i].user=newOwner.trim();
-                localStorage.setItem("savedSearches",JSON.stringify(searches));
-                loadSavedSearches();
-                loadInbox();
-            };
-            right.appendChild(btn);
-        }
-
-        // Delete only InfinityPixel
-        if(user==="InfinityPixel"){
-            const del=document.createElement("button");
-            del.textContent="Delete";
-            del.style.marginLeft="6px";
-            del.onclick=(e)=>{
-                e.stopPropagation();
-                deleteSearch(i);
-            };
-            right.appendChild(del);
-        }
-
-        div.appendChild(left);
-        div.appendChild(right);
-        div.onclick=()=>openChat(entry.hex,entry.item);
-        list.appendChild(div);
+        // Convert the object from Firebase into an array we can display
+        Object.keys(data).forEach((key) => {
+            const entry = data[key];
+            const div = document.createElement("div");
+            div.className = "search-entry";
+            
+            div.innerHTML = `
+                <div><strong>${entry.user}</strong> — ${entry.hex} — ${entry.item}</div>
+                <button onclick="openChat('${entry.hex}', '${entry.item}')">Chat</button>
+            `;
+            list.appendChild(div);
+        });
     });
 }
 
@@ -323,9 +327,9 @@ function sendMessage(){
         user:localStorage.getItem("currentUser"),
         text:text
     });
-    localStorage.setItem("messages",JSON.stringify(all));
+   push(ref(db, 'chats/' + activeHex), { user, text });
     chatInput.value="";
-    renderChat();
+    renderChat(onValue(ref(db, 'chats/' + activeHex), { user, text }));
 }
 
 function closeChat(){
@@ -413,6 +417,7 @@ function lookupHexCode(){
 
 </body>
 </html>
+
 
 
 
