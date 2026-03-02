@@ -476,78 +476,92 @@ pageItems.forEach((entry, i) => {
     }
 
     function loadSavedSearches() {
-        const list = document.getElementById("searchList");
-        list.innerHTML = "";
+  function loadSavedSearches() {
+    const list = document.getElementById("searchList");
+    list.innerHTML = "";
 
-        let searches = JSON.parse(localStorage.getItem("savedSearches") || "[]");
-        let messages = JSON.parse(localStorage.getItem("savedMessages") || "[]");
-        const user = localStorage.getItem("savedUser");
+    let searches = JSON.parse(localStorage.getItem("savedSearches") || "[]");
+    let messages = JSON.parse(localStorage.getItem("savedMessages") || "[]");
+    const user = localStorage.getItem("savedUser");
 
-        const totalItems = searches.length;
-        const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+    const totalItems = searches.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+    if (currentPage > totalPages) currentPage = totalPages;
 
-        if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const pageItems = searches.slice(start, end);
 
-        const start = (currentPage - 1) * itemsPerPage;
-        const end = start + itemsPerPage;
-        const pageItems = searches.slice(start, end);
+    pageItems.forEach((entry, i) => {
+    const div = document.createElement("div");
+    div.className = "search-entry";
 
-        pageItems.forEach(entry => {
-            const div = document.createElement("div");
-            div.className = "search-entry";
+    const main = document.createElement("div");
+    main.className = "entry-main";
+    main.innerHTML = `<strong>${entry.user}</strong> — ${entry.hex} — ${entry.item}`;
 
-            const main = document.createElement("div");
-            main.className = "entry-main";
-            main.textContent = `${entry.user} — ${entry.hex} — ${entry.item}`;
+    const right = document.createElement("div");
 
-            const badgeContainer = document.createElement("div");
-
-            const unreadCount = countUnreadForUser(entry.hex, user, messages);
-            if (unreadCount > 0) {
-                const badge = document.createElement("span");
-                badge.className = "badge";
-                badge.textContent = unreadCount;
-                badgeContainer.appendChild(badge);
-            }
-
-            div.appendChild(main);
-            div.appendChild(badgeContainer);
-
-            div.onclick = () => openChat(entry.hex, entry.item);
-
-            list.appendChild(div);
-        });
-
-        const nav = document.createElement("div");
-        nav.className = "pagination";
-
-        const totalPagesCalc = Math.ceil(totalItems / itemsPerPage) || 1;
-
-        const prevBtn = document.createElement("button");
-        prevBtn.textContent = "Previous";
-        prevBtn.disabled = currentPage === 1;
-        prevBtn.onclick = () => {
-            currentPage--;
-            loadSavedSearches();
-        };
-
-        const nextBtn = document.createElement("button");
-        nextBtn.textContent = "Next";
-        nextBtn.disabled = currentPage === totalPagesCalc;
-        nextBtn.onclick = () => {
-            currentPage++;
-            loadSavedSearches();
-        };
-
-        const label = document.createElement("span");
-        label.textContent = `Page ${currentPage} of ${totalPagesCalc}`;
-
-        nav.appendChild(prevBtn);
-        nav.appendChild(label);
-        nav.appendChild(nextBtn);
-
-        list.appendChild(nav);
+    const unreadCount = countUnreadForUser(entry.hex, user, messages);
+    if (unreadCount > 0) {
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = unreadCount;
+        right.appendChild(badge);
     }
+
+    // ✅ ONLY the current owner of this saved search can edit it
+    if (user === entry.user) {
+        const editBtn = document.createElement("button");
+        editBtn.textContent = "Transfer";
+        editBtn.style.marginLeft = "6px";
+
+        editBtn.onclick = (e) => {
+            e.stopPropagation();
+
+            const newOwner = prompt("Enter new owner username:");
+            if (!newOwner || newOwner.trim() === "") return;
+
+            let searches = JSON.parse(localStorage.getItem("savedSearches") || "[]");
+
+            // Update correct global index (pagination safe)
+            searches[start + i].user = newOwner.trim();
+
+            localStorage.setItem("savedSearches", JSON.stringify(searches));
+
+            loadSavedSearches();
+            loadInbox();
+        };
+
+        right.appendChild(editBtn);
+    }
+
+    div.appendChild(main);
+    div.appendChild(right);
+    div.onclick = () => openChat(entry.hex, entry.item);
+
+    list.appendChild(div);
+});
+
+        // ✅ DELETE button only for InfinityPixel
+        if (user === "InfinityPixel") {
+            const delBtn = document.createElement("button");
+            delBtn.textContent = "Delete";
+            delBtn.style.marginLeft = "6px";
+            delBtn.onclick = (e) => {
+                e.stopPropagation();
+                deleteSearch(start + i);
+            };
+            right.appendChild(delBtn);
+        }
+
+        div.appendChild(main);
+        div.appendChild(right);
+        div.onclick = () => openChat(entry.hex, entry.item);
+
+        list.appendChild(div);
+    });
+}
 
     // ---------- Messages Storage ----------
     function getMessages(hex) {
@@ -792,6 +806,44 @@ pageItems.forEach((entry, i) => {
 </script>
 </body>
 </html>
+<script>function bulkImport() {
+    const raw = document.getElementById("bulkImportBox").value.trim();
+    const user = localStorage.getItem("savedUser");
+
+    if (!raw) return;
+
+    // Example input:
+    // Velvet Top Hat | #7E4005 | Top: Chocolate Dye (ΔE: 1,66 | Abs: 9)
+
+    const lines = raw.split("\n");
+
+    let searches = JSON.parse(localStorage.getItem("savedSearches") || "[]");
+
+    lines.forEach(line => {
+        const parts = line.split("|").map(p => p.trim());
+
+        if (parts.length >= 2) {
+            const item = parts[0];
+            const hex = parts[1];
+
+            if (hex.length === 7 && hex.startsWith("#")) {
+                searches.push({
+                    user: user,
+                    hex: hex,
+                    item: item
+                });
+            }
+        }
+    });
+
+    localStorage.setItem("savedSearches", JSON.stringify(searches));
+
+    document.getElementById("bulkImportBox").value = "";
+    loadSavedSearches();
+    loadInbox();
+}
+</script>
+
 
 
 
