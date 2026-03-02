@@ -116,6 +116,10 @@
 <hr>
 
 <h3>Inbox</h3>
+    <br>
+<button id="resetBtn" onclick="resetAllData()" style="background:#ed4245;">
+    RESET ALL DATA (InfinityPixel ONLY)
+</button>
 <div id="inboxList"></div>
 
 <hr>
@@ -310,7 +314,22 @@ function sendMessage(){
 function closeChat(){
     chatWindow.style.display="none";
 }
+    function resetAllData(){
+    const user = localStorage.getItem("currentUser");
+
+    if(user !== "InfinityPixel"){
+        alert("Only InfinityPixel can reset all data.");
+        return;
+    }
+
+    if(!confirm("Are you sure? This will permanently delete ALL saved data.")) return;
+
+    localStorage.clear();
+    location.reload();
+}
 </script>
 
 </body>
 </html>
+
+
