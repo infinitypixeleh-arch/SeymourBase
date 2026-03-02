@@ -411,7 +411,7 @@
         document.getElementById("searchSection").style.display = "block";
 
         const user = localStorage.getItem("savedUser");
-        if (user === "admintest") {
+        if (user === "InfinityPixel") {
             document.getElementById("adminResetBtn").style.display = "inline-block";
         }
 
@@ -437,7 +437,7 @@ pageItems.forEach((entry, i) => {
     }
 
     // 🔥 Add delete button ONLY for admintest
-    if (user === "admintest") {
+    if (user === "InfinityPixel") {
         const delBtn = document.createElement("button");
         delBtn.textContent = "Delete";
         delBtn.className = "delete-btn";
@@ -792,5 +792,6 @@ pageItems.forEach((entry, i) => {
 </script>
 </body>
 </html>
+
 
 
