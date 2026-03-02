@@ -418,7 +418,43 @@
         loadSavedSearches();
         loadInbox();
     }
+pageItems.forEach((entry, i) => {
+    const div = document.createElement("div");
+    div.className = "search-entry";
 
+    const main = document.createElement("div");
+    main.className = "entry-main";
+    main.textContent = `${entry.user} — ${entry.hex} — ${entry.item}`;
+
+    const badgeContainer = document.createElement("div");
+
+    const unreadCount = countUnreadForUser(entry.hex, user, messages);
+    if (unreadCount > 0) {
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = unreadCount;
+        badgeContainer.appendChild(badge);
+    }
+
+    // 🔥 Add delete button ONLY for admintest
+    if (user === "admintest") {
+        const delBtn = document.createElement("button");
+        delBtn.textContent = "Delete";
+        delBtn.className = "delete-btn";
+        delBtn.onclick = (e) => {
+            e.stopPropagation(); // prevent opening chat
+            deleteSearch(start + i); // correct index in full array
+        };
+        badgeContainer.appendChild(delBtn);
+    }
+
+    div.appendChild(main);
+    div.appendChild(badgeContainer);
+
+    div.onclick = () => openChat(entry.hex, entry.item);
+
+    list.appendChild(div);
+});
     // ---------- Saved Searches ----------
     function saveSearch() {
         const hex = document.getElementById("hexInput").value.trim();
@@ -756,4 +792,5 @@
 </script>
 </body>
 </html>
+
 
