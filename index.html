@@ -45,27 +45,29 @@
 
         .search-entry, .inbox-entry {
             background: #2f3136;
-            padding: 8px;
+            padding: 10px;
             border-radius: 6px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             cursor: pointer;
+            border: 1px solid transparent;
         }
+
+        .search-entry:hover { border-color: #5865F2; }
 
         #chatMessages {
             background: #202225;
-            height: 300px;
+            height: 250px;
             overflow-y: auto;
-            padding: 12px;
+            padding: 10px;
             border-radius: 6px;
-            margin-bottom: 8px;
-            border: 1px solid #202225;
+            margin-bottom: 10px;
         }
 
-        .msg-line { margin-bottom: 5px; border-bottom: 1px solid #2f3136; padding-bottom: 2px; }
-        .msg-user { color: #5865F2; font-weight: bold; }
+        .msg-item { margin-bottom: 8px; font-size: 14px; }
+        .msg-user { color: #5865F2; font-weight: bold; margin-right: 5px; }
 
         hr { margin: 20px 0; border: 1px solid #202225; }
     </style>
@@ -73,70 +75,61 @@
 <body>
 
 <div class="container">
+    <h2>Login</h2>
+    <div id="loginSection">
+        <input id="usernameInput" placeholder="Username">
+        <input id="passwordInput" type="password" placeholder="Password">
+        <br>
+        <button onclick="submitLogin()">Login</button>
+        <button onclick="switchToCreate()">Create Account</button>
+        <p id="errorMsg" style="color:#ed4245;"></p>
+    </div>
 
-<h2>Login</h2>
-<div id="loginSection">
-    <input id="usernameInput" placeholder="Username">
-    <input id="passwordInput" type="password" placeholder="Password">
-    <br>
-    <button onclick="submitLogin()">Login</button>
-    <button onclick="switchToCreate()">Create Account</button>
-    <p id="errorMsg" style="color:#ed4245;"></p>
+    <div id="appSection" style="display:none;">
+        <hr>
+        <h3>Start a Discussion</h3>
+        <input id="threadTitle" placeholder="Thread Title...">
+        <select id="categorySelect">
+            <option value="">(No Category)</option>
+            <option>General</option>
+            <option>Questions</option>
+            <option>Trading</option>
+            <option>News</option>
+        </select>
+        <br>
+        <button onclick="saveThread()">Post Thread</button>
+        
+        <hr>
+        <h3>Find Threads</h3>
+        <input id="searchKeyword" placeholder="Search by title, user, or category...">
+        <button onclick="searchThreads()">Search</button>
+        <div id="searchResults"></div>
+
+        <hr>
+        <h3>Recent Threads</h3>
+        <div id="threadList"></div>
+        <div style="text-align: center; margin-top: 10px;">
+            <button id="prevBtn" onclick="changePage(-1)">Prev</button>
+            <span id="pageLabel">Page 1</span>
+            <button id="nextBtn" onclick="changePage(1)">Next</button>
+        </div>
+
+        <hr>
+        <h3>My Threads</h3>
+        <div id="myThreadsList"></div>
+
+        <div id="chatWindow" style="display:none; margin-top: 20px; padding: 15px; background: #2f3136; border-radius: 8px;">
+            <h3 id="chatTitle"></h3>
+            <div id="chatMessages"></div>
+            <input id="chatInput" style="width: 80%;" placeholder="Write a reply...">
+            <button onclick="sendReply()">Reply</button>
+            <button onclick="closeChat()" style="background:#4f545c;">Close</button>
+        </div>
+    </div>
 </div>
 
-<div id="appSection" style="display:none;">
-
-<hr>
-
-<h3>Create New Thread</h3>
-<input id="threadTitle" placeholder="Thread Title (e.g. Trading Items)">
-<select id="categorySelect">
-    <option value="">(Optional) Select Category</option>
-    <option>General</option>
-    <option>Trading</option>
-    <option>Support</option>
-    <option>Off-Topic</option>
-</select>
-<br>
-<button onclick="saveThread()">Post Thread</button>
-<hr>
-
-<h3>Search Forums</h3>
-<input id="keywordSearch" placeholder="Search keywords, users, or categories...">
-<button onclick="lookupKeywords()">Search</button>
-<div id="lookupResults"></div>
-
-<hr>
-
-<h3>Recent Discussions</h3>
-<div id="searchList"></div>
-<div id="paginationControls" style="margin-top: 10px; text-align: center;">
-    <button id="prevPage" onclick="changePage(-1)">Previous</button>
-    <span id="pageDisplay" style="margin: 0 15px;">Page 1</span>
-    <button id="nextPage" onclick="changePage(1)">Next</button>
-</div>
-<hr>
-
-<h3>My Threads</h3>
-<div id="inboxList"></div>
-
-<hr>
-
-<div id="chatWindow" style="display:none;">
-    <h3 id="chatTitle"></h3>
-    <div id="chatMessages"></div>
-    <textarea id="chatInput" placeholder="Write a reply..." style="width: 100%; height: 60px;"></textarea>
-    <br>
-    <button onclick="sendMessage()">Post Reply</button>
-    <button onclick="closeChat()">Close Thread</button>
-</div>
-
-</div>
-</div>
-
-<div style="text-align: center; padding-bottom: 20px;">
-    <button id="resetBtn" onclick="resetAllData()" style="background:#ed4245; display:none;">RESET DATABASE</button>
-    <button onclick="requestNotificationPermission()">Enable Desktop Alerts</button>
+<div style="text-align:center; padding: 20px;">
+    <button id="adminReset" onclick="resetData()" style="background:#ed4245; display:none;">RESET ALL DATA</button>
 </div>
 
 <script type="module">
@@ -158,188 +151,155 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
 
-let mode = "login";
-let activeChatId = null;
+let authMode = "login";
+let activeId = null;
+let allThreads = [];
 let currentPage = 1;
-const entriesPerPage = 10;
-let totalSearches = []; 
+const perPage = 10;
 
-// --- AUTH ---
-window.switchToCreate = () => { mode = "create"; document.getElementById("errorMsg").textContent = "Mode: Create Account"; };
+// Auth Functions
+window.switchToCreate = () => { authMode = "create"; document.getElementById("errorMsg").innerText = "Mode: Create Account"; };
 
-window.submitLogin = async function() {
-    const user = document.getElementById("usernameInput").value.trim();
-    const pass = document.getElementById("passwordInput").value.trim();
-    if(!user || !pass) return;
-    const fakeEmail = `${user.toLowerCase()}@seymour.base`;
+window.submitLogin = async () => {
+    const u = document.getElementById("usernameInput").value.trim();
+    const p = document.getElementById("passwordInput").value.trim();
+    if(!u || !p) return;
+    const email = `${u.toLowerCase()}@seymour.base`;
     try {
-        if (mode === "create") await createUserWithEmailAndPassword(auth, fakeEmail, pass);
-        else await signInWithEmailAndPassword(auth, fakeEmail, pass);
-    } catch (e) { document.getElementById("errorMsg").textContent = "Error: " + e.message; }
+        if(authMode === "create") await createUserWithEmailAndPassword(auth, email, p);
+        else await signInWithEmailAndPassword(auth, email, p);
+    } catch(e) { document.getElementById("errorMsg").innerText = e.message; }
 };
 
 onAuthStateChanged(auth, (user) => {
-    if (user) {
+    if(user) {
         const username = user.email.split('@')[0];
         localStorage.setItem("currentUser", username);
         document.getElementById("loginSection").style.display = "none";
         document.getElementById("appSection").style.display = "block";
-        if(username.toLowerCase() === "infinitypixel") document.getElementById("resetBtn").style.display = "inline-block";
-        startGlobalSync(username);
+        if(username === "infinitypixel") document.getElementById("adminReset").style.display = "inline";
+        initSync(username);
     } else {
         document.getElementById("loginSection").style.display = "block";
         document.getElementById("appSection").style.display = "none";
     }
 });
 
-// --- DATA SYNC ---
-function startGlobalSync(currentUser) {
-    onValue(ref(db, 'threads'), (snapshot) => {
-        const data = snapshot.val();
-        if (!data) {
-            document.getElementById("searchList").innerHTML = "No threads yet.";
+// Logic
+function initSync(currentUser) {
+    onValue(ref(db, 'threads'), (snap) => {
+        const data = snap.val();
+        if(!data) {
+            document.getElementById("threadList").innerHTML = "No threads found.";
             return;
         }
-        totalSearches = Object.keys(data).map(id => ({ id, ...data[id] })).reverse();
-        renderPaginatedList(currentUser);
-        
-        // My Threads
-        const inbox = document.getElementById("inboxList");
-        inbox.innerHTML = "";
-        totalSearches.filter(e => e.user === currentUser).forEach(entry => {
-            const div = document.createElement("div");
-            div.className = "inbox-entry";
-            div.textContent = `${entry.title} [${entry.category || 'General'}]`;
-            div.onclick = () => window.openChat(entry.id, entry.title);
-            inbox.appendChild(div);
-        });
+        allThreads = Object.keys(data).map(id => ({ id, ...data[id] })).reverse();
+        renderThreads(currentUser);
+        renderMyThreads(currentUser);
     });
 }
 
-function renderPaginatedList(currentUser) {
-    const list = document.getElementById("searchList");
+function renderThreads(currentUser) {
+    const list = document.getElementById("threadList");
     list.innerHTML = "";
-    const pageItems = totalSearches.slice((currentPage-1)*entriesPerPage, currentPage*entriesPerPage);
+    const start = (currentPage - 1) * perPage;
+    const pageItems = allThreads.slice(start, start + perPage);
 
-    pageItems.forEach(entry => {
-        const lastViewed = localStorage.getItem(`lastViewed_${entry.id}`) || 0;
-        const hasUnread = entry.lastActivity && entry.lastActivity > lastViewed;
-        
+    pageItems.forEach(t => {
+        const lastViewed = localStorage.getItem(`view_${t.id}`) || 0;
+        const unread = t.lastActivity > lastViewed;
         const div = document.createElement("div");
         div.className = "search-entry";
-        div.innerHTML = `
-            <div>
-                ${hasUnread ? '<span style="color:#ed4245">● </span>' : ''}
-                <strong>${entry.title}</strong> <small>by ${entry.user} (${entry.category || 'General'})</small>
-            </div>
-        `;
+        div.innerHTML = `<div>${unread ? '🔵 ' : ''}<strong>${t.title}</strong> <small>(${t.category || 'General'})</small></div>`;
         
-        const btnContainer = document.createElement("div");
-        if(currentUser.toLowerCase() === "infinitypixel") {
+        if(currentUser === "infinitypixel") {
             const del = document.createElement("button");
-            del.textContent = "Delete";
-            del.onclick = (e) => { e.stopPropagation(); remove(ref(db, `threads/${entry.id}`)); };
-            btnContainer.appendChild(del);
+            del.innerText = "Delete";
+            del.onclick = (e) => { e.stopPropagation(); remove(ref(db, `threads/${t.id}`)); };
+            div.appendChild(del);
         }
-        div.appendChild(btnContainer);
-        div.onclick = () => window.openChat(entry.id, entry.title);
+        div.onclick = () => openThread(t.id, t.title);
         list.appendChild(div);
     });
-
-    document.getElementById("pageDisplay").textContent = `Page ${currentPage}`;
-    document.getElementById("prevPage").disabled = (currentPage === 1);
-    document.getElementById("nextPage").disabled = (currentPage * entriesPerPage >= totalSearches.length);
+    document.getElementById("pageLabel").innerText = `Page ${currentPage}`;
 }
 
-window.changePage = (dir) => { currentPage += dir; renderPaginatedList(localStorage.getItem("currentUser")); };
+function renderMyThreads(currentUser) {
+    const myDiv = document.getElementById("myThreadsList");
+    myDiv.innerHTML = "";
+    allThreads.filter(t => t.user === currentUser).forEach(t => {
+        const div = document.createElement("div");
+        div.className = "inbox-entry";
+        div.innerText = t.title;
+        div.onclick = () => openThread(t.id, t.title);
+        myDiv.appendChild(div);
+    });
+}
 
-// --- FORUM ACTIONS ---
-window.saveThread = function() {
+window.changePage = (dir) => {
+    currentPage += dir;
+    renderThreads(localStorage.getItem("currentUser"));
+};
+
+window.saveThread = () => {
     const title = document.getElementById("threadTitle").value.trim();
-    const category = document.getElementById("categorySelect").value;
+    const cat = document.getElementById("categorySelect").value;
     const user = localStorage.getItem("currentUser");
     if(title) {
-        push(ref(db, 'threads'), { user, title, category, lastActivity: Date.now() });
+        push(ref(db, 'threads'), { title, category: cat, user, lastActivity: Date.now() });
         document.getElementById("threadTitle").value = "";
     }
 };
 
-window.lookupKeywords = function() {
-    const query = document.getElementById("keywordSearch").value.toLowerCase().trim();
-    const resultsDiv = document.getElementById("lookupResults");
-    resultsDiv.innerHTML = "";
-    if(!query) return;
-
-    totalSearches.forEach(entry => {
-        const inTitle = entry.title.toLowerCase().includes(query);
-        const inCat = (entry.category || "").toLowerCase().includes(query);
-        const inUser = entry.user.toLowerCase().includes(query);
-
-        if(inTitle || inCat || inUser) {
-            const res = document.createElement("div");
-            res.className = "search-entry";
-            res.innerHTML = `<strong>${entry.title}</strong> — ${entry.user} [${entry.category || 'General'}]`;
-            res.onclick = () => window.openChat(entry.id, entry.title);
-            resultsDiv.appendChild(res);
-        }
+window.searchThreads = () => {
+    const query = document.getElementById("searchKeyword").value.toLowerCase();
+    const results = document.getElementById("searchResults");
+    results.innerHTML = "";
+    allThreads.filter(t => 
+        t.title.toLowerCase().includes(query) || 
+        (t.category && t.category.toLowerCase().includes(query)) ||
+        t.user.toLowerCase().includes(query)
+    ).forEach(t => {
+        const d = document.createElement("div");
+        d.className = "search-entry";
+        d.innerText = `${t.title} [${t.category || 'General'}] by ${t.user}`;
+        d.onclick = () => openThread(t.id, t.title);
+        results.appendChild(d);
     });
 };
 
-// --- MESSAGING ---
-window.openChat = function(id, title) {
-    activeChatId = id;
+window.openThread = (id, title) => {
+    activeId = id;
     document.getElementById("chatWindow").style.display = "block";
-    document.getElementById("chatTitle").textContent = title;
-    localStorage.setItem(`lastViewed_${id}`, Date.now());
+    document.getElementById("chatTitle").innerText = title;
+    localStorage.setItem(`view_${id}`, Date.now());
     
-    const msgDiv = document.getElementById("chatMessages");
-    let isFirstLoad = true;
-
-    onValue(ref(db, `messages/${id}`), (snapshot) => {
-        msgDiv.innerHTML = "";
-        const msgs = snapshot.val();
-        if(msgs) {
-            const msgsArray = Object.values(msgs);
-            msgsArray.forEach(m => {
-                const d = document.createElement("div");
-                d.className = "msg-line";
-                d.innerHTML = `<span class="msg-user">${m.user}:</span> ${m.text}`;
-                msgDiv.appendChild(d);
+    onValue(ref(db, `replies/${id}`), (snap) => {
+        const msgs = document.getElementById("chatMessages");
+        msgs.innerHTML = "";
+        if(snap.val()) {
+            Object.values(snap.val()).forEach(m => {
+                const item = document.createElement("div");
+                item.className = "msg-item";
+                item.innerHTML = `<span class="msg-user">${m.user}:</span> ${m.text}`;
+                msgs.appendChild(item);
             });
-            if(!isFirstLoad && msgsArray[msgsArray.length-1].user !== localStorage.getItem("currentUser")) {
-                showNotification(title, msgsArray[msgsArray.length-1].user, msgsArray[msgsArray.length-1].text);
-            }
         }
-        isFirstLoad = false;
-        msgDiv.scrollTop = msgDiv.scrollHeight;
+        msgs.scrollTop = msgs.scrollHeight;
     });
 };
 
-window.sendMessage = function() {
-    const input = document.getElementById("chatInput");
-    const text = input.value.trim();
-    if(!text || !activeChatId) return;
-    const currentUser = localStorage.getItem("currentUser");
-
-    push(ref(db, `messages/${activeChatId}`), { user: currentUser, text: text, timestamp: Date.now() });
-    set(ref(db, `threads/${activeChatId}/lastActivity`), Date.now());
-    input.value = "";
+window.sendReply = () => {
+    const text = document.getElementById("chatInput").value.trim();
+    if(!text || !activeId) return;
+    const user = localStorage.getItem("currentUser");
+    push(ref(db, `replies/${activeId}`), { user, text, time: Date.now() });
+    set(ref(db, `threads/${activeId}/lastActivity`), Date.now());
+    document.getElementById("chatInput").value = "";
 };
 
 window.closeChat = () => document.getElementById("chatWindow").style.display = "none";
-
-window.resetAllData = () => { if(confirm("Clear all forum data?")) set(ref(db, '/'), null); };
-
-// --- NOTIFICATIONS ---
-window.requestNotificationPermission = () => {
-    if ("Notification" in window) Notification.requestPermission();
-};
-
-function showNotification(title, user, text) {
-    if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(`New Reply in ${title}`, { body: `${user}: ${text}` });
-    }
-}
+window.resetData = () => { if(confirm("Wipe database?")) set(ref(db, '/'), null); };
 </script>
 </body>
 </html>
